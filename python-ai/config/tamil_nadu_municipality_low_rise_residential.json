@@ -1,0 +1,156 @@
+{
+  "context": {
+    "jurisdiction": "Tamil Nadu municipality (requested scope; applicability not verified)",
+    "local_body": "Municipality not specified",
+    "building_use": "Low-rise residential (requested category; definition not verified)",
+    "plot_classification": "Not specified; officer confirmation required",
+    "rule_version": "Not established; current official version and amendments not verified",
+    "verification_status": "UNVERIFIED"
+  },
+  "rules": {
+    "fsi_far": {
+      "operator": null,
+      "value": null,
+      "unit": "ratio",
+      "source": "No verified official source supplied.",
+      "verification_status": "UNVERIFIED",
+      "provenance": {
+        "source_document_title": null,
+        "government_order_or_gazette_identifier": null,
+        "rule_or_table_reference": null,
+        "publication_or_amendment_date": null,
+        "official_source_url": null,
+        "verification_status": "UNVERIFIED",
+        "applicability_notes": "Low-rise residential applicability, plot classification, and current amendments have not been verified."
+      }
+    },
+    "plot_coverage": {
+      "operator": null,
+      "value": null,
+      "unit": "%",
+      "source": "No verified official source supplied.",
+      "verification_status": "UNVERIFIED",
+      "provenance": {
+        "source_document_title": null,
+        "government_order_or_gazette_identifier": null,
+        "rule_or_table_reference": null,
+        "publication_or_amendment_date": null,
+        "official_source_url": null,
+        "verification_status": "UNVERIFIED",
+        "applicability_notes": "Applicable coverage requirement and measurement basis have not been verified."
+      }
+    },
+    "front_setback": {
+      "operator": null,
+      "value": null,
+      "unit": "m",
+      "source": "No verified official source supplied.",
+      "verification_status": "UNVERIFIED",
+      "provenance": {
+        "source_document_title": null,
+        "government_order_or_gazette_identifier": null,
+        "rule_or_table_reference": null,
+        "publication_or_amendment_date": null,
+        "official_source_url": null,
+        "verification_status": "UNVERIFIED",
+        "applicability_notes": "Applicable front setback and measurement basis have not been verified."
+      }
+    },
+    "side_setback": {
+      "operator": null,
+      "value": null,
+      "unit": "m",
+      "source": "No verified official source supplied.",
+      "verification_status": "UNVERIFIED",
+      "provenance": {
+        "source_document_title": null,
+        "government_order_or_gazette_identifier": null,
+        "rule_or_table_reference": null,
+        "publication_or_amendment_date": null,
+        "official_source_url": null,
+        "verification_status": "UNVERIFIED",
+        "applicability_notes": "Applicable side setback and measurement basis have not been verified."
+      }
+    },
+    "rear_setback": {
+      "operator": null,
+      "value": null,
+      "unit": "m",
+      "source": "No verified official source supplied.",
+      "verification_status": "UNVERIFIED",
+      "provenance": {
+        "source_document_title": null,
+        "government_order_or_gazette_identifier": null,
+        "rule_or_table_reference": null,
+        "publication_or_amendment_date": null,
+        "official_source_url": null,
+        "verification_status": "UNVERIFIED",
+        "applicability_notes": "Applicable rear setback and measurement basis have not been verified."
+      }
+    },
+    "setback": {
+      "operator": null,
+      "value": null,
+      "unit": "m",
+      "source": "No verified official source supplied.",
+      "verification_status": "UNVERIFIED",
+      "provenance": {
+        "source_document_title": null,
+        "government_order_or_gazette_identifier": null,
+        "rule_or_table_reference": null,
+        "publication_or_amendment_date": null,
+        "official_source_url": null,
+        "verification_status": "UNVERIFIED",
+        "applicability_notes": "The generic setback check is not mapped to a verified requirement."
+      }
+    },
+    "building_height": {
+      "operator": null,
+      "value": null,
+      "unit": "m",
+      "source": "No verified official source supplied.",
+      "verification_status": "UNVERIFIED",
+      "provenance": {
+        "source_document_title": null,
+        "government_order_or_gazette_identifier": null,
+        "rule_or_table_reference": null,
+        "publication_or_amendment_date": null,
+        "official_source_url": null,
+        "verification_status": "UNVERIFIED",
+        "applicability_notes": "Applicable height requirement and its relationship to other site conditions have not been verified."
+      }
+    },
+    "road_width": {
+      "operator": null,
+      "value": null,
+      "unit": "m",
+      "source": "No verified official source supplied.",
+      "verification_status": "UNVERIFIED",
+      "provenance": {
+        "source_document_title": null,
+        "government_order_or_gazette_identifier": null,
+        "rule_or_table_reference": null,
+        "publication_or_amendment_date": null,
+        "official_source_url": null,
+        "verification_status": "UNVERIFIED",
+        "applicability_notes": "Applicable road-width requirement and measurement point have not been verified."
+      }
+    },
+    "parking": {
+      "operator": null,
+      "value": null,
+      "unit": "spaces",
+      "source": "No verified official source supplied.",
+      "verification_status": "UNVERIFIED",
+      "provenance": {
+        "source_document_title": null,
+        "government_order_or_gazette_identifier": null,
+        "rule_or_table_reference": null,
+        "publication_or_amendment_date": null,
+        "official_source_url": null,
+        "verification_status": "UNVERIFIED",
+        "applicability_notes": "Applicable parking requirement, vehicle categories, and counting basis have not been verified."
+      }
+    }
+  }
+}

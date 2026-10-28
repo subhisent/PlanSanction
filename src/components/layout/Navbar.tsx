@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
-  const { currentUser, switchUserByRole } = useCurrentUser();
+  const { currentUser, logout } = useCurrentUser();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -30,19 +30,12 @@ export const Navbar: React.FC = () => {
         { path: '/client/history', label: 'History & Permits', icon: History },
         { path: '/client/profile', label: 'My Profile', icon: User },
       ];
-    } else if (currentUser.role === 'officer') {
+    } else {
       return [
         { path: '/officer', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/officer/applications', label: 'Applications Queue', icon: Layers },
         { path: '/officer/applicants', label: 'Applicants Directory', icon: Users },
         { path: '/officer/profile', label: 'Jurisdiction Profile', icon: User },
-      ];
-    } else {
-      // Admin
-      return [
-        { path: '/admin', label: 'District Analytics', icon: LayoutDashboard },
-        { path: '/admin/officers', label: 'Officer Management', icon: Users },
-        { path: '/verify', label: 'Public Verification', icon: FileCheck2 },
       ];
     }
   };
@@ -89,6 +82,19 @@ export const Navbar: React.FC = () => {
             <div className="w-8 h-8 rounded-full bg-blue-700 border border-blue-500 flex items-center justify-center text-white font-bold text-xs">
               {currentUser.name.charAt(0)}
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                logout();
+                navigate('/login', { replace: true });
+              }}
+              className="flex items-center gap-1.5 rounded-md border border-slate-600 px-2.5 py-1.5 text-xs font-semibold text-slate-200 transition-colors hover:border-red-400 hover:bg-red-950/40 hover:text-white"
+              aria-label="Log out"
+              title="Log out"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              <span>Logout</span>
+            </button>
           </div>
         </div>
       </div>
@@ -98,7 +104,7 @@ export const Navbar: React.FC = () => {
         <div className="max-w-7xl mx-auto flex items-center justify-between overflow-x-auto">
           <nav className="flex space-x-1 sm:space-x-2 py-1">
             {navLinks.map((link) => {
-              const isActive = location.pathname === link.path || (link.path !== '/client' && link.path !== '/officer' && link.path !== '/admin' && location.pathname.startsWith(link.path));
+              const isActive = location.pathname === link.path || (link.path !== '/client' && link.path !== '/officer' && location.pathname.startsWith(link.path));
               const Icon = link.icon;
               return (
                 <Link

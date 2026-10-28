@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useCurrentUser, useApplications } from '../../services/store';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { ComplianceGauge } from '../../components/common/ComplianceGauge';
+import { fetchApplications, BackendApplication } from '../../services/applicationApi';
+import { ApplicationStatus, BuildingType } from '../../types';
 import { 
   FilePlus2, 
   SearchCheck, 
@@ -15,22 +17,92 @@ import {
   Sparkles, 
   Building2,
   FileCheck2,
-  Info
+  Info,
+  XCircle
 } from 'lucide-react';
 
 export const ClientHome: React.FC = () => {
   const { currentUser } = useCurrentUser();
   const { applications } = useApplications();
+  const [backendApps, setBackendApps] = useState<BackendApplication[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchApplications()
+      .then((apps) => {
+        if (!cancelled) setBackendApps(apps);
+      })
+      .catch((err) => console.error('Failed to load live applications on dashboard:', err));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Filter client's applications
-  const myApps = applications.filter(a => a.applicantId === currentUser.uid || a.applicantName.toLowerCase().includes('murugesan'));
+  const myApps = applications.filter(a => 
+    a.applicantId === currentUser.uid || 
+    a.applicantName.toLowerCase().includes('murugesan')
+  );
 
-  const total = myApps.length;
-  const approved = myApps.filter(a => a.status === 'approved').length;
-  const inReview = myApps.filter(a => a.status === 'submitted' || a.status === 'under_ai_review' || a.status === 'officer_review').length;
-  const corrections = myApps.filter(a => a.status === 'correction_required').length;
+  // Unify backend applications with local applications
+  const unifiedApps = [
+    ...backendApps.map((b) => {
+      const existing = myApps.find(
+        (m) =>
+          m.applicationNo.toLowerCase() === b.applicationNumber.toLowerCase() ||
+          String(m.id) === String(b.id)
+      );
+      const normalizedStatus = String(b.status || 'submitted').toLowerCase().replace(/s_required$/, '_required');
+      return {
+        id: String(b.id),
+        applicationNo: b.applicationNumber,
+        plotDetails: {
+          surveyNo: b.surveyNumber || existing?.plotDetails?.surveyNo || '142/3A',
+          taluk: existing?.plotDetails?.taluk || 'Tiruchengode',
+          ward: existing?.plotDetails?.ward || 'Ward 4',
+        },
+        buildingType: (b.buildingType || existing?.buildingType || 'residential') as BuildingType,
+        floors: b.floors || existing?.floors || 2,
+        plotAreaSqm: b.plotArea || existing?.plotAreaSqm || 240,
+        builtUpAreaSqm: existing?.builtUpAreaSqm || (b.plotArea ? Math.round(b.plotArea * 1.5) : 320),
+        aiReport: {
+          complianceScore: b.complianceScore ?? (existing?.aiReport?.complianceScore || (normalizedStatus === 'approved' ? 100 : 85)),
+          summary:
+            normalizedStatus === 'approved'
+              ? 'Statutory building scrutiny confirmed compliant under TNCDBR 2019. Official sanction order issued.'
+              : normalizedStatus === 'rejected'
+              ? (b.rejectionReason || 'Building proposal rejected by Town Planning Authority. See official rejection notice.')
+              : normalizedStatus === 'officer_review'
+              ? 'Automated plan scrutiny completed. Under technical review by Town Planning Officer.'
+              : 'Automated plan scrutiny submitted to Town Planning Officer.',
+        },
+        rejectionReason: b.rejectionReason || existing?.rejectionReason,
+        status: normalizedStatus as ApplicationStatus,
+        submittedAt: b.submittedAt || existing?.submittedAt || new Date().toISOString(),
+      };
+    }),
+    ...myApps
+      .filter(
+        (m) =>
+          !backendApps.some(
+            (b) => b.applicationNumber.toLowerCase() === m.applicationNo.toLowerCase()
+          )
+      )
+      .map((m) => ({
+        ...m,
+        status: String(m.status).toLowerCase().replace(/s_required$/, '_required') as ApplicationStatus,
+      })),
+  ];
 
-  const latestApps = myApps.slice(0, 3);
+  const total = unifiedApps.length;
+  const approved = unifiedApps.filter(a => a.status === 'approved').length;
+  const inReview = unifiedApps.filter(a => a.status === 'submitted' || a.status === 'under_ai_review' || a.status === 'officer_review').length;
+  const corrections = unifiedApps.filter(a => a.status === 'correction_required').length;
+  const rejected = unifiedApps.filter(a => a.status === 'rejected').length;
+
+  const latestApps = [...unifiedApps]
+    .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime() || Number(b.id) - Number(a.id))
+    .slice(0, 8);
 
   return (
     <div className="space-y-6">
@@ -204,6 +276,16 @@ export const ClientHome: React.FC = () => {
                         >
                           <AlertTriangle className="w-3.5 h-3.5" />
                           <span>Fix Corrections</span>
+                        </Link>
+                      )}
+
+                      {app.status === 'rejected' && (
+                        <Link
+                          to={`/client/status?app=${encodeURIComponent(app.applicationNo)}`}
+                          className="inline-flex items-center justify-center space-x-1.5 px-3.5 py-1.5 rounded-lg bg-rose-50 text-rose-800 border border-rose-300 hover:bg-rose-100 text-xs font-bold transition-colors"
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                          <span>Rejection Details</span>
                         </Link>
                       )}
                     </div>

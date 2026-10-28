@@ -9,17 +9,17 @@ interface RoleRouteProps {
 }
 
 export const RoleRoute: React.FC<RoleRouteProps> = ({ children, allowedRoles }) => {
-  const { currentUser } = useCurrentUser();
+  const { currentUser, isAuthenticated } = useCurrentUser();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
 
   if (!allowedRoles.includes(currentUser.role)) {
-    // Redirect to default home for current role
-    if (currentUser.role === 'client') {
-      return <Navigate to="/client" replace />;
-    } else if (currentUser.role === 'officer') {
+    if (currentUser.role === 'officer') {
       return <Navigate to="/officer" replace />;
-    } else {
-      return <Navigate to="/admin" replace />;
     }
+    return <Navigate to="/client" replace />;
   }
 
   return <>{children}</>;

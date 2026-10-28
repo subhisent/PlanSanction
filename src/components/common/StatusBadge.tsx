@@ -54,7 +54,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md', s
     }
   };
 
-  const config = configs[status] || configs.submitted;
+  const key = String(status || '').toLowerCase().replace(/s_required$/, '_required') as ApplicationStatus;
+  const config = configs[key] || configs[status] || configs.submitted;
   const Icon = config.icon;
 
   const sizeClasses = {

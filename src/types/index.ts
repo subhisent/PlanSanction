@@ -1,4 +1,4 @@
-export type UserRole = 'client' | 'officer' | 'admin';
+export type UserRole = 'client' | 'officer';
 
 export type Region = 'Tiruchengode' | 'Rasipuram' | 'Kumarapalayam' | 'Paramathi-Velur';
 export type District = 'Namakkal';
@@ -48,11 +48,13 @@ export interface Setbacks {
 
 export interface UploadedPlanFile {
   name: string;
-  type: 'pdf' | 'dwg' | 'dxf';
+  type: 'pdf' | 'dwg' | 'dxf' | 'image';
   storagePath: string;
+  originalStoragePath?: string;
   sizeBytes: number;
   url?: string;
   uploadedAt: string;
+  ocr?: import('../services/planOcr').PlanOcrResult;
   dxfInfo?: {
     layers: string[];
     boundingBox?: {

@@ -56,17 +56,6 @@ export const DEMO_USERS: UserProfile[] = [
     district: 'Namakkal',
     designation: 'Assistant Director / Town Planning',
     createdAt: '2025-08-01T09:00:00Z',
-  },
-  {
-    uid: 'demo-admin-nmk',
-    name: 'Dr. S. Priya IAS',
-    email: 'admin.nmk@plansanction.tn.gov.in',
-    role: 'admin',
-    phone: '+91 4286 280001',
-    region: 'Tiruchengode',
-    district: 'Namakkal',
-    designation: 'District Collector & Chairman, Local Planning Authority',
-    createdAt: '2025-06-01T09:00:00Z',
   }
 ];
 

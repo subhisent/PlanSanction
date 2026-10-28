@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApplications, useCurrentUser } from '../../services/store';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { ApplicationStatus, BuildingType } from '../../types';
+import {
+  fetchApplicationsForOfficer,
+  type BackendApplication
+} from '../../services/applicationApi';
 import { 
   Layers, 
   Search, 
@@ -15,9 +19,39 @@ import {
   CheckCircle2
 } from 'lucide-react';
 
+const normalizeStatus = (status: string): ApplicationStatus => {
+  const normalized = status.toLowerCase();
+
+  const allowedStatuses: ApplicationStatus[] = [
+    'submitted',
+    'under_ai_review',
+    'officer_review',
+    'correction_required',
+    'approved',
+    'rejected',
+  ];
+
+  return allowedStatuses.includes(normalized as ApplicationStatus)
+    ? (normalized as ApplicationStatus)
+    : 'submitted';
+};
+
 export const OfficerApplications: React.FC = () => {
-  const { applications } = useApplications();
-  const { currentUser } = useCurrentUser();
+   const { currentUser } = useCurrentUser();
+
+  // Temporary test ID: officer 2 in the MySQL users table.
+  const officerId = 2;
+
+  const [applications, setApplications] = useState<BackendApplication[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState('');
+
+  useEffect(() => {
+    fetchApplicationsForOfficer(officerId)
+      .then(setApplications)
+      .catch((error: Error) => setApiError(error.message))
+      .finally(() => setLoading(false));
+  }, []);
 
   const officerRegion = currentUser.region || 'Tiruchengode';
   const [searchQuery, setSearchQuery] = useState('');
@@ -27,27 +61,36 @@ export const OfficerApplications: React.FC = () => {
   const [sortBy, setSortBy] = useState<'date-desc' | 'date-asc' | 'score-desc' | 'score-asc'>('date-desc');
 
   // Filter applications by officer's region
-  const regionApps = applications.filter(a => a.plotDetails.region === officerRegion);
+ const regionApps = applications;
 
   const filtered = regionApps.filter(app => {
-    const matchesSearch =
-      app.applicationNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      app.applicantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      app.plotDetails.surveyNo.toLowerCase().includes(searchQuery.toLowerCase());
+  const matchesSearch =
+    app.applicationNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (app.plotNumber ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (app.surveyNumber ?? '').toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesStatus = statusFilter === 'all' || app.status === statusFilter;
-    const matchesType = typeFilter === 'all' || app.buildingType === typeFilter;
-    const matchesYear = yearFilter === 'all' || app.submittedAt.startsWith(yearFilter);
+  const matchesStatus = statusFilter === 'all' || app.status.toLowerCase() === statusFilter.toLowerCase();
+  const matchesType = typeFilter === 'all' || (app.buildingType ?? '').toLowerCase() === typeFilter.toLowerCase();
+  const matchesYear = yearFilter === 'all' || (app.submittedAt ?? '').startsWith(yearFilter);
 
-    return matchesSearch && matchesStatus && matchesType && matchesYear;
-  });
+  return matchesSearch && matchesStatus && matchesType && matchesYear;
+});
 
-  // Sort
+ 
+  // Sort applications returned by the backend.
   filtered.sort((a, b) => {
-    if (sortBy === 'date-desc') return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime();
-    if (sortBy === 'date-asc') return new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime();
-    if (sortBy === 'score-desc') return (b.aiReport?.complianceScore || 0) - (a.aiReport?.complianceScore || 0);
-    if (sortBy === 'score-asc') return (a.aiReport?.complianceScore || 0) - (b.aiReport?.complianceScore || 0);
+    const dateA = a.submittedAt
+      ? new Date(a.submittedAt).getTime()
+      : 0;
+
+    const dateB = b.submittedAt
+      ? new Date(b.submittedAt).getTime()
+      : 0;
+
+    if (sortBy === 'date-desc') return dateB - dateA;
+    if (sortBy === 'date-asc') return dateA - dateB;
+    if (sortBy === 'score-desc') return (b.complianceScore ?? 0) - (a.complianceScore ?? 0);
+    if (sortBy === 'score-asc') return (a.complianceScore ?? 0) - (b.complianceScore ?? 0);
     return 0;
   });
 
@@ -162,51 +205,66 @@ export const OfficerApplications: React.FC = () => {
                   <tr key={app.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-3.5 px-4 font-mono font-bold text-blue-900">
                       <Link to={`/officer/review/${encodeURIComponent(app.id)}`} className="hover:underline">
-                        {app.applicationNo}
+                        {app.applicationNumber}
                       </Link>
                     </td>
 
                     <td className="py-3.5 px-4">
-                      <div className="font-semibold text-slate-900">{app.applicantName}</div>
-                      <div className="text-[11px] text-slate-500 font-mono">{app.applicantPhone}</div>
+                      <div className="font-semibold text-slate-900">{'Applicant details not linked'}</div>
+                      <div className="text-[11px] text-slate-500 font-mono">{'—'}</div>
                     </td>
 
                     <td className="py-3.5 px-4 text-slate-800">
-                      <div className="font-semibold">S.No. {app.plotDetails.surveyNo}</div>
-                      <div className="text-[11px] text-slate-500">{app.plotDetails.ward} • Road: {app.plotDetails.abuttingRoadWidthM}m</div>
+                      <div className="font-semibold">S.No. {app.surveyNumber ?? '—'}</div>
+                      <div className="text-[11px] text-slate-500">{app.plotNumber ?? '—'} • Road: {app.plotArea ?? '—'}m</div>
                     </td>
 
                     <td className="py-3.5 px-4 capitalize">
                       <span className="font-medium text-slate-800">{app.buildingType}</span>
                       <div className="text-[11px] text-slate-500 font-mono">
-                        {app.builtUpAreaSqm} m² (G+{app.floors - 1})
+                        {app.plotArea ?? '—'} m² (G+{app.floors ?? '—'})
                       </div>
                     </td>
 
                     <td className="py-3.5 px-4">
-                      {app.aiReport ? (
-                        <div className="flex items-center space-x-1.5">
-                          <span className={`font-mono font-bold px-2 py-0.5 rounded text-[11px] ${
-                            app.aiReport.complianceScore >= 85
-                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                              : app.aiReport.complianceScore >= 70
-                              ? 'bg-blue-50 text-blue-800 border border-blue-200'
-                              : 'bg-rose-50 text-rose-800 border border-rose-200'
-                          }`}>
-                            {app.aiReport.complianceScore}%
+                      {app.complianceScore != null ? (
+                        <div className="flex flex-col gap-1 items-start">
+                          <div className="flex items-center space-x-1.5">
+                            <span
+                              className={`font-mono font-bold px-2 py-0.5 rounded text-xs ${
+                                app.complianceScore >= 80
+                                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                                  : app.complianceScore >= 60
+                                  ? 'bg-amber-50 text-amber-800 border border-amber-300'
+                                  : 'bg-rose-50 text-rose-800 border border-rose-300'
+                              }`}
+                            >
+                              {app.complianceScore}%
+                            </span>
+                          </div>
+                          <span
+                            className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border leading-tight ${
+                              app.complianceScore >= 80
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : 'bg-amber-50 text-amber-700 border-amber-200'
+                            }`}
+                          >
+                            {app.complianceScore >= 80 ? '≥ 80% Meets Threshold' : '< 80% Scrutiny Required'}
                           </span>
                         </div>
                       ) : (
-                        <span className="text-slate-400 font-mono">—</span>
+                        <span className="text-slate-400 font-mono text-xs">—</span>
                       )}
                     </td>
 
                     <td className="py-3.5 px-4">
-                      <StatusBadge status={app.status} size="sm" />
+                      <StatusBadge status={normalizeStatus(app.status)} />
                     </td>
 
                     <td className="py-3.5 px-4 font-mono text-slate-600 text-[11px]">
-                      {new Date(app.submittedAt).toLocaleDateString('en-GB')}
+                      {app.submittedAt
+                                  ? new Date(app.submittedAt).toLocaleDateString('en-IN')
+                                   : '—'}
                     </td>
 
                     <td className="py-3.5 px-4 text-right">

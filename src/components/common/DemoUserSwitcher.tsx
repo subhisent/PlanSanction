@@ -10,13 +10,11 @@ export const DemoUserSwitcher: React.FC = () => {
   const navigate = useNavigate();
 
   const handleSwitch = (role: UserRole) => {
-    const user = switchUserByRole(role);
+    switchUserByRole(role);
     if (role === 'client') {
       navigate('/client');
-    } else if (role === 'officer') {
+    } else {
       navigate('/officer');
-    } else if (role === 'admin') {
-      navigate('/admin');
     }
   };
 
@@ -32,12 +30,6 @@ export const DemoUserSwitcher: React.FC = () => {
       title: 'Town Planning Officer',
       subtitle: 'Tiruchengode Region',
       icon: Building
-    },
-    {
-      role: 'admin',
-      title: 'District Collector / LPA',
-      subtitle: 'Namakkal District',
-      icon: Shield
     }
   ];
 

@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useCurrentUser, useApplications } from '../../services/store';
 import { StatusBadge } from '../../components/common/StatusBadge';
+import { fetchApplicationsForOfficer, BackendApplication } from '../../services/applicationApi';
+import { ApplicationStatus, BuildingType } from '../../types';
 import { 
   BarChart, 
   Bar, 
@@ -21,20 +23,86 @@ import {
   Calendar,
   Sparkles,
   Layers,
-  FileCheck2
+  FileCheck2,
+  XCircle
 } from 'lucide-react';
 
 export const OfficerHome: React.FC = () => {
   const { currentUser } = useCurrentUser();
   const { applications, stats } = useApplications();
+  const [backendApps, setBackendApps] = useState<BackendApplication[]>([]);
+
+  const officerId = 2;
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchApplicationsForOfficer(officerId)
+      .then((apps) => {
+        if (!cancelled) setBackendApps(apps);
+      })
+      .catch((err) => console.error('Failed to load officer applications:', err));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Region-scoped queue
   const officerRegion = currentUser.region || 'Tiruchengode';
-  const regionApps = applications.filter(a => a.plotDetails.region === officerRegion);
+  const localRegionApps = applications.filter(a => a.plotDetails.region === officerRegion);
 
-  const pending = regionApps.filter(a => a.status === 'officer_review' || a.status === 'submitted' || a.status === 'under_ai_review');
-  const approved = regionApps.filter(a => a.status === 'approved');
-  const corrections = regionApps.filter(a => a.status === 'correction_required');
+  // Unify backend applications with local applications
+  const unifiedOfficerApps = [
+    ...backendApps.map((b) => {
+      const existing = localRegionApps.find(
+        (m) =>
+          m.applicationNo.toLowerCase() === b.applicationNumber.toLowerCase() ||
+          String(m.id) === String(b.id)
+      );
+      const normalizedStatus = String(b.status || 'submitted').toLowerCase().replace(/s_required$/, '_required');
+      return {
+        id: String(b.id),
+        applicationNo: b.applicationNumber,
+        applicantName: existing?.applicantName || 'Citizen Applicant',
+        plotDetails: {
+          surveyNo: b.surveyNumber || existing?.plotDetails?.surveyNo || '142/3A',
+          taluk: existing?.plotDetails?.taluk || 'Tiruchengode',
+          ward: existing?.plotDetails?.ward || 'Ward 4',
+          region: officerRegion,
+        },
+        buildingType: (b.buildingType || existing?.buildingType || 'residential') as BuildingType,
+        floors: b.floors || existing?.floors || 2,
+        plotAreaSqm: b.plotArea || existing?.plotAreaSqm || 240,
+        builtUpAreaSqm: existing?.builtUpAreaSqm || (b.plotArea ? Math.round(b.plotArea * 1.5) : 320),
+        aiReport: {
+          complianceScore: b.complianceScore ?? (normalizedStatus === 'approved' ? 100 : 85),
+          summary:
+            normalizedStatus === 'approved'
+              ? 'Statutory building scrutiny confirmed compliant under TNCDBR 2019.'
+              : 'Automated plan scrutiny ready for officer inspection.',
+        },
+        status: normalizedStatus as ApplicationStatus,
+        submittedAt: b.submittedAt || existing?.submittedAt || new Date().toISOString(),
+      };
+    }),
+    ...localRegionApps
+      .filter(
+        (m) =>
+          !backendApps.some(
+            (b) => b.applicationNumber.toLowerCase() === m.applicationNo.toLowerCase()
+          )
+      )
+      .map((m) => ({
+        ...m,
+        status: String(m.status).toLowerCase().replace(/s_required$/, '_required') as ApplicationStatus,
+      })),
+  ];
+
+  const pending = unifiedOfficerApps.filter(
+    (a) => a.status === 'officer_review' || a.status === 'submitted' || a.status === 'under_ai_review'
+  );
+  const approved = unifiedOfficerApps.filter((a) => a.status === 'approved');
+  const corrections = unifiedOfficerApps.filter((a) => a.status === 'correction_required');
+  const rejected = unifiedOfficerApps.filter((a) => a.status === 'rejected');
 
   // Chart data
   const chartData = [
@@ -185,7 +253,10 @@ export const OfficerHome: React.FC = () => {
                 <p className="text-xs font-medium">All applications in {officerRegion} are up to date.</p>
               </div>
             ) : (
-              pending.slice(0, 4).map((app) => (
+              [...pending]
+                .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime() || Number(b.id) - Number(a.id))
+                .slice(0, 6)
+                .map((app) => (
                 <div key={app.id} className="p-4 hover:bg-slate-50 transition-colors flex items-center justify-between gap-4">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">

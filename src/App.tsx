@@ -20,8 +20,7 @@ import { PlanReview } from './pages/officer/PlanReview';
 import { OfficerApplicants } from './pages/officer/OfficerApplicants';
 import { OfficerProfile } from './pages/officer/OfficerProfile';
 
-// Admin Pages
-import { AdminDashboard } from './pages/admin/AdminDashboard';
+
 
 // Public Verification Page
 import { VerifyCertificate } from './pages/public/VerifyCertificate';
@@ -122,23 +121,7 @@ export const App: React.FC = () => {
             }
           />
 
-          {/* Admin Routes */}
-          <Route
-            path="/admin"
-            element={
-              <RoleRoute allowedRoles={['admin']}>
-                <AdminDashboard />
-              </RoleRoute>
-            }
-          />
-          <Route
-            path="/admin/officers"
-            element={
-              <RoleRoute allowedRoles={['admin']}>
-                <AdminDashboard />
-              </RoleRoute>
-            }
-          />
+
         </Route>
 
         {/* Root Redirect to Client Portal */}

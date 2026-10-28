@@ -23,6 +23,11 @@ export const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<UserRole>('client');
 
+  const roleAccounts: Record<UserRole, { label: string; email: string }> = {
+    client: { label: 'Citizen', email: 'citizen@gmail.com' },
+    officer: { label: 'Municipal Officer', email: 'officer@gmail.com' },
+  };
+
   const handleCustomLogin = (e: React.FormEvent) => {
     e.preventDefault();
     const matched = DEMO_USERS.find(u => u.email.toLowerCase() === email.toLowerCase()) || {
@@ -38,15 +43,13 @@ export const Login: React.FC = () => {
 
     setCurrentUser(matched);
     if (matched.role === 'client') navigate('/client');
-    else if (matched.role === 'officer') navigate('/officer');
-    else navigate('/admin');
+    else navigate('/officer');
   };
 
   const handleDemoSelect = (roleName: UserRole) => {
-    const user = switchUserByRole(roleName);
+    switchUserByRole(roleName);
     if (roleName === 'client') navigate('/client');
-    else if (roleName === 'officer') navigate('/officer');
-    else navigate('/admin');
+    else navigate('/officer');
   };
 
   return (
@@ -74,10 +77,10 @@ export const Login: React.FC = () => {
           <div className="space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                Select Demo Role Persona
+                Select Role
               </span>
               <span className="text-[10px] bg-blue-50 text-blue-800 px-2 py-0.5 rounded font-mono font-bold">
-                1-Click Sign-In
+                Role-based sign-in
               </span>
             </div>
 
@@ -86,7 +89,8 @@ export const Login: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handleDemoSelect('client')}
-                className="w-full p-3 rounded-xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50/50 flex items-center justify-between text-left transition-all group"
+                className="w-full p-3 rounded-xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50/50 flex items-center justify-between text-left transition-all group cursor-pointer"
+                title="Instant Sign In as Citizen"
               >
                 <div className="flex items-center space-x-3">
                   <div className="w-9 h-9 rounded-lg bg-blue-100 text-blue-800 flex items-center justify-center">
@@ -94,10 +98,10 @@ export const Login: React.FC = () => {
                   </div>
                   <div>
                     <div className="text-xs font-bold text-slate-900 group-hover:text-blue-900">
-                      Applicant / Architect Persona
+                      Citizen (Applicant)
                     </div>
                     <div className="text-[11px] text-slate-500">
-                      S. K. Murugesan & Associates (client@plansanction.tn.gov.in)
+                      {roleAccounts.client.email} • Click to enter Citizen Desk
                     </div>
                   </div>
                 </div>
@@ -108,45 +112,26 @@ export const Login: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handleDemoSelect('officer')}
-                className="w-full p-3 rounded-xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50/50 flex items-center justify-between text-left transition-all group"
+                className="w-full p-3 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 flex items-center justify-between text-left transition-all group cursor-pointer"
+                title="Instant Sign In as Municipal Officer"
               >
                 <div className="flex items-center space-x-3">
                   <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center">
                     <Building2 className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-slate-900 group-hover:text-blue-900">
-                      Town Planning Officer (Tiruchengode)
+                    <div className="text-xs font-bold text-slate-900 group-hover:text-emerald-900">
+                      Municipal Officer (Scrutiny)
                     </div>
                     <div className="text-[11px] text-slate-500">
-                      Er. K. Ramesh (officer.tcg@plansanction.tn.gov.in)
+                      {roleAccounts.officer.email} • Click to enter Officer Action Desk
                     </div>
                   </div>
                 </div>
-                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-colors" />
+                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 transition-colors" />
               </button>
 
-              {/* Persona 3: Admin */}
-              <button
-                type="button"
-                onClick={() => handleDemoSelect('admin')}
-                className="w-full p-3 rounded-xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50/50 flex items-center justify-between text-left transition-all group"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="w-9 h-9 rounded-lg bg-purple-100 text-purple-800 flex items-center justify-center">
-                    <Shield className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-slate-900 group-hover:text-blue-900">
-                      District Collector / LPA Chairman
-                    </div>
-                    <div className="text-[11px] text-slate-500">
-                      Dr. S. Priya IAS (admin.nmk@plansanction.tn.gov.in)
-                    </div>
-                  </div>
-                </div>
-                <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-colors" />
-              </button>
+
             </div>
           </div>
 
@@ -155,7 +140,7 @@ export const Login: React.FC = () => {
               <div className="w-full border-t border-slate-200" />
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="px-2 bg-white text-slate-500">Or sign in with email</span>
+              <span className="px-2 bg-white text-slate-500">Enter your role username and password</span>
             </div>
           </div>
 
@@ -163,14 +148,14 @@ export const Login: React.FC = () => {
           <form onSubmit={handleCustomLogin} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Official Email
+                Username / Email
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                 <input
                   type="email"
                   required
-                  placeholder="name@plansanction.tn.gov.in"
+                  placeholder={roleAccounts[role].email}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full text-xs pl-9 pr-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
@@ -197,16 +182,15 @@ export const Login: React.FC = () => {
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Login Role Designation
+                Login Role
               </label>
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value as UserRole)}
                 className="w-full text-xs p-2 rounded-lg border border-slate-300 bg-white capitalize font-medium"
               >
-                <option value="client">Applicant / Registered Architect</option>
-                <option value="officer">Town Planning Officer</option>
-                <option value="admin">District Administrator / Collector</option>
+                <option value="client">Citizen</option>
+                <option value="officer">Municipal Officer</option>
               </select>
             </div>
 

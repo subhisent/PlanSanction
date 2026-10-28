@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useApplications, useCurrentUser } from '../../services/store';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { ApplicationStatus, BuildingType } from '../../types';
+import { fetchApplications, BackendApplication } from '../../services/applicationApi';
 import { 
   History, 
   Search, 
@@ -20,10 +21,23 @@ export const ApplicationHistory: React.FC = () => {
   const { applications } = useApplications();
   const { currentUser } = useCurrentUser();
 
+  const [backendApps, setBackendApps] = useState<BackendApplication[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [yearFilter, setYearFilter] = useState<string>('2026');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchApplications()
+      .then((apps) => {
+        if (!cancelled) setBackendApps(apps);
+      })
+      .catch((err) => console.error('Failed to load live applications:', err));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Filter client's applications
   const myApps = applications.filter(a => 
@@ -31,7 +45,49 @@ export const ApplicationHistory: React.FC = () => {
     a.applicantName.toLowerCase().includes('murugesan')
   );
 
-  const filteredApps = myApps.filter(app => {
+  // Merge live backend applications into view
+  const unifiedApps = [
+    ...backendApps.map((b) => {
+      const existing = myApps.find(
+        (m) =>
+          m.applicationNo.toLowerCase() === b.applicationNumber.toLowerCase() ||
+          String(m.id) === String(b.id)
+      );
+      const normalizedStatus = String(b.status || 'submitted').toLowerCase().replace(/s_required$/, '_required');
+      return {
+        id: String(b.id),
+        applicationNo: b.applicationNumber,
+        plotDetails: {
+          surveyNo: b.surveyNumber || existing?.plotDetails?.surveyNo || '142/3A',
+          taluk: existing?.plotDetails?.taluk || 'Tiruchengode',
+          ward: existing?.plotDetails?.ward || 'Ward 4',
+        },
+        buildingType: (b.buildingType || existing?.buildingType || 'residential') as BuildingType,
+        floors: b.floors || existing?.floors || 2,
+        proposedHeightM: existing?.proposedHeightM || (b.floors ? b.floors * 3.2 : 6.4),
+        builtUpAreaSqm: existing?.builtUpAreaSqm || (b.plotArea ? Math.round(b.plotArea * 1.5) : 320),
+        plotAreaSqm: b.plotArea || existing?.plotAreaSqm || 240,
+        aiReport: existing?.aiReport || {
+          complianceScore: normalizedStatus === 'approved' ? 100 : 85,
+        },
+        status: normalizedStatus,
+        submittedAt: b.submittedAt || existing?.submittedAt || new Date().toISOString(),
+      };
+    }),
+    ...myApps
+      .filter(
+        (m) =>
+          !backendApps.some(
+            (b) => b.applicationNumber.toLowerCase() === m.applicationNo.toLowerCase()
+          )
+      )
+      .map((m) => ({
+        ...m,
+        status: String(m.status).toLowerCase().replace(/s_required$/, '_required'),
+      })),
+  ].sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime() || Number(b.id) - Number(a.id));
+
+  const filteredApps = unifiedApps.filter(app => {
     const matchesQuery = 
       app.applicationNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
       app.plotDetails.surveyNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -195,7 +251,7 @@ export const ApplicationHistory: React.FC = () => {
                     </td>
 
                     <td className="py-3.5 px-4">
-                      <StatusBadge status={app.status} size="sm" />
+                      <StatusBadge status={app.status as ApplicationStatus} size="sm" />
                     </td>
 
                     <td className="py-3.5 px-4 font-mono text-slate-600 text-[11px]">

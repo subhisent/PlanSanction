@@ -3,6 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useCurrentUser, useApplications } from '../../services/store';
 import { BuildingType, Region, UploadedPlanFile } from '../../types';
 import { parseDxfFile } from '../../services/dxfParser';
+import { saveUploadedDocument } from '../../services/documentStorage';
+import { preprocessPlanImage } from '../../services/imagePreprocessing';
+import { extractPlanText, PlanOcrResult } from '../../services/planOcr';
+import { getUploadedDocument } from '../../services/documentStorage';
+import { uploadApplicationDocument } from '../../services/applicationApi';
 import { 
   Building2, 
   MapPin, 
@@ -64,16 +69,7 @@ export const NewApplication: React.FC = () => {
   const [staircaseWidthM, setStaircaseWidthM] = useState(1.25);
 
   // Step 3: Files & CAD Uploads
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedPlanFile[]>([
-    {
-      name: 'Site_Plan_And_Sections.pdf',
-      type: 'pdf',
-      storagePath: 'plans/temp/Site_Plan.pdf',
-      sizeBytes: 4350000,
-      uploadedAt: new Date().toISOString(),
-      url: 'https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/examples/learning/helloworld.pdf'
-    }
-  ]);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedPlanFile[]>([]);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -88,6 +84,7 @@ export const NewApplication: React.FC = () => {
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const ext = file.name.split('.').pop()?.toLowerCase();
+      const isImage = ['jpg', 'jpeg', 'png', 'webp'].includes(ext || '');
 
       if (file.size > 25 * 1024 * 1024) {
         setUploadError(`File ${file.name} exceeds the 25MB maximum limit.`);
@@ -95,13 +92,38 @@ export const NewApplication: React.FC = () => {
         return;
       }
 
-      if (ext !== 'pdf' && ext !== 'dwg' && ext !== 'dxf') {
-        setUploadError(`Unsupported file type (.${ext}). Only PDF, DWG, and DXF are accepted.`);
+      if (ext !== 'pdf' && ext !== 'dwg' && ext !== 'dxf' && !isImage) {
+        setUploadError(`Unsupported file type (.${ext}). Only PDF, DWG, DXF, JPG, PNG, and WebP are accepted.`);
         setUploadProgress(null);
         return;
       }
 
       setUploadProgress(50);
+
+      let uploadFile = file;
+      let originalStoragePath: string | undefined;
+      if (isImage) {
+        try {
+          uploadFile = await preprocessPlanImage(file);
+          originalStoragePath = `local-documents/${crypto.randomUUID()}`;
+          await saveUploadedDocument(originalStoragePath, file);
+        } catch (error) {
+          console.error('Image preprocessing failed:', error);
+          setUploadError(`Could not preprocess ${file.name}. Please try another image.`);
+          setUploadProgress(null);
+          return;
+        }
+      }
+
+      let ocr: PlanOcrResult | undefined;
+      if (ext === 'pdf' || isImage) {
+        try {
+          ocr = await extractPlanText(uploadFile, ext === 'pdf');
+        } catch (error) {
+          console.error('Plan OCR failed:', error);
+          setUploadError(`Text extraction failed for ${file.name}. The drawing was uploaded; enter dimensions manually.`);
+        }
+      }
 
       let dxfInfo = undefined;
       if (ext === 'dxf') {
@@ -114,12 +136,24 @@ export const NewApplication: React.FC = () => {
 
       setUploadProgress(85);
 
+      const storagePath = `local-documents/${crypto.randomUUID()}`;
+      try {
+        await saveUploadedDocument(storagePath, uploadFile);
+      } catch (error) {
+        console.error('Failed to save uploaded document:', error);
+        setUploadError(`Could not save ${file.name}. Please try again.`);
+        setUploadProgress(null);
+        return;
+      }
+
       const newFileObj: UploadedPlanFile = {
         name: file.name,
-        type: ext as 'pdf' | 'dwg' | 'dxf',
-        storagePath: `plans/draft/${file.name}`,
+        type: isImage ? 'image' : ext as 'pdf' | 'dwg' | 'dxf',
+        storagePath,
+        originalStoragePath,
         sizeBytes: file.size,
         uploadedAt: new Date().toISOString(),
+        ocr,
         dxfInfo
       };
 
@@ -133,6 +167,59 @@ export const NewApplication: React.FC = () => {
 
   const handleRemoveFile = (fileName: string) => {
     setUploadedFiles(prev => prev.filter(f => f.name !== fileName));
+  };
+
+  const handleAttachSampleDrawing = async () => {
+    try {
+      setUploadProgress(20);
+      setUploadError(null);
+      const res = await fetch('/sample_building_plan.pdf');
+      if (!res.ok) throw new Error('Sample plan file not found in public folder');
+      const blob = await res.blob();
+      const sampleFile = new File([blob], 'bp.pdf', { type: 'application/pdf' });
+
+      setUploadProgress(60);
+      let ocr: PlanOcrResult | undefined;
+      try {
+        ocr = await extractPlanText(sampleFile, true);
+      } catch (err) {
+        console.warn('Sample PDF OCR extraction fallback:', err);
+      }
+
+      const storagePath = `local-documents/${crypto.randomUUID()}`;
+      await saveUploadedDocument(storagePath, sampleFile);
+
+      setUploadedFiles(prev => [
+        ...prev.filter(f => f.name !== 'bp.pdf'),
+        {
+          name: sampleFile.name,
+          type: 'pdf',
+          storagePath,
+          sizeBytes: sampleFile.size,
+          uploadedAt: new Date().toISOString(),
+          ocr,
+        }
+      ]);
+      setUploadProgress(100);
+      setTimeout(() => setUploadProgress(null), 500);
+    } catch (err) {
+      console.error('Failed to load sample drawing:', err);
+      setUploadError('Could not load sample drawing file. Please select a local PDF file.');
+      setUploadProgress(null);
+    }
+  };
+
+  const applyOcrMeasurements = (ocr: PlanOcrResult) => {
+    const measurements = ocr.measurements;
+    if (measurements.plotAreaSqm) setPlotAreaSqm(measurements.plotAreaSqm);
+    if (measurements.builtUpAreaSqm) setBuiltUpAreaSqm(measurements.builtUpAreaSqm);
+    if (measurements.roadWidthM) setRoadWidthM(measurements.roadWidthM);
+    if (measurements.frontageM) setFrontageM(measurements.frontageM);
+    if (measurements.frontSetbackM) setFrontSetback(measurements.frontSetbackM);
+    if (measurements.rearSetbackM) setRearSetback(measurements.rearSetbackM);
+    if (measurements.leftSetbackM) setLeftSetback(measurements.leftSetbackM);
+    if (measurements.rightSetbackM) setRightSetback(measurements.rightSetbackM);
+    setCurrentStep(2);
   };
 
   // Validations per step
@@ -161,58 +248,125 @@ export const NewApplication: React.FC = () => {
     setCurrentStep(s => Math.min(4, s + 1));
   };
 
-  const handleSubmit = async () => {
-    setIsSubmitting(true);
-    try {
-      const created = await createApplication({
-        applicantId: currentUser.uid,
-        applicantName,
-        applicantPhone,
-        applicantEmail,
-        applicantAadhaar,
-        applicantAddress,
-        plotDetails: {
-          surveyNo,
-          pattaNo,
-          ward,
-          street,
-          village,
-          taluk,
-          region: taluk,
-          district: 'Namakkal',
-          abuttingRoadWidthM: roadWidthM,
-          frontageM
-        },
-        buildingType,
-        plotAreaSqm,
-        builtUpAreaSqm,
-        groundCoveragePercentage: Math.round((builtUpAreaSqm / (floors * plotAreaSqm)) * 100),
-        fsi: Number((builtUpAreaSqm / plotAreaSqm).toFixed(2)),
-        floors,
-        proposedHeightM,
-        setbacks: {
-          front: frontSetback,
-          rear: rearSetback,
-          left: leftSetback,
-          right: rightSetback
-        },
-        parkingSpacesCar: parkingCars,
-        parkingSpacesTwoWheeler: parkingTwoWheelers,
-        rainwaterHarvestingProvided: rwhProvided,
-        staircaseWidthM,
-        files: uploadedFiles
-      });
+  
+const handleSubmit = async () => {
+  setIsSubmitting(true);
 
-      // Redirect to status tracking
-      navigate(`/client/status?app=${encodeURIComponent(created.applicationNo)}`);
-    } catch (err) {
-      console.error('Failed to submit application:', err);
-      alert('Application submission error. Please check your data.');
-    } finally {
-      setIsSubmitting(false);
+  console.log('Submitting applicant email:', applicantEmail);
+
+  let createdApplicationNo: string | null = null;
+
+  try {
+    // 1. Create the application in MySQL through Spring Boot.
+    const created = await createApplication({
+      applicantId: currentUser.uid,
+      applicantName,
+      applicantPhone,
+      applicantEmail,
+      applicantAadhaar,
+      applicantAddress,
+      plotDetails: {
+        surveyNo,
+        pattaNo,
+        ward,
+        street,
+        village,
+        taluk,
+        region: taluk,
+        district: 'Namakkal',
+        abuttingRoadWidthM: roadWidthM,
+        frontageM,
+      },
+      buildingType,
+      plotAreaSqm,
+      builtUpAreaSqm,
+      groundCoveragePercentage: Math.round(
+        (builtUpAreaSqm / (floors * plotAreaSqm)) * 100
+      ),
+      fsi: Number((builtUpAreaSqm / plotAreaSqm).toFixed(2)),
+      floors,
+      proposedHeightM,
+      setbacks: {
+        front: frontSetback,
+        rear: rearSetback,
+        left: leftSetback,
+        right: rightSetback,
+      },
+      parkingSpacesCar: parkingCars,
+      parkingSpacesTwoWheeler: parkingTwoWheelers,
+      rainwaterHarvestingProvided: rwhProvided,
+      staircaseWidthM,
+      files: uploadedFiles,
+    });
+
+    createdApplicationNo = created.applicationNo;
+
+    // 2. Get the real backend application ID.
+    const backendApplicationId = Number(created.id);
+
+    if (
+      !Number.isSafeInteger(backendApplicationId) ||
+      backendApplicationId <= 0
+    ) {
+      throw new Error(
+        `Application ${created.applicationNo} was created, but its backend ID is invalid.`
+      );
     }
-  };
 
+    // 3. Upload every selected document to Spring Boot.
+    for (const uploaded of uploadedFiles) {
+      const storedBlob = await getUploadedDocument(
+        uploaded.storagePath
+      );
+
+      if (!storedBlob) {
+        throw new Error(
+          `Application ${created.applicationNo} was created, but "${uploaded.name}" could not be retrieved from browser storage.`
+        );
+      }
+
+      const fileToUpload = new File(
+        [storedBlob],
+        uploaded.name,
+        {
+          type:
+            storedBlob.type ||
+            'application/octet-stream',
+        }
+      );
+
+      await uploadApplicationDocument(
+        backendApplicationId,
+        fileToUpload,
+        1
+      );
+
+      console.log(
+        `Uploaded "${uploaded.name}" for application ${created.applicationNo}`
+      );
+    }
+
+    // 4. Redirect only after all selected files upload successfully.
+    navigate(
+      `/client/status?app=${encodeURIComponent(created.applicationNo)}`
+    );
+  } catch (err) {
+    console.error('Application submission/upload failed:', err);
+
+    const message =
+      err instanceof Error ? err.message : String(err);
+
+    if (createdApplicationNo) {
+      alert(
+        `Application ${createdApplicationNo} was created, but document upload or final submission processing failed.\n\n${message}\n\nDo not submit the application again yet. Check the application's documents in MySQL first.`
+      );
+    } else {
+      alert(`Application submission failed: ${message}`);
+    }
+  } finally {
+    setIsSubmitting(false);
+  }
+};
   const steps = [
     { num: 1, title: 'Applicant Details', icon: Building2 },
     { num: 2, title: 'Plot & Building Geometry', icon: MapPin },
@@ -664,7 +818,7 @@ export const NewApplication: React.FC = () => {
             <div className="border-b border-slate-200 pb-3">
               <h3 className="text-base font-bold text-slate-900">Step 3: Upload Architectural & CAD Drawing Files</h3>
               <p className="text-xs text-slate-500">
-                Accepts <strong className="text-slate-800">.PDF</strong>, <strong className="text-slate-800">.DXF</strong>, and <strong className="text-slate-800">.DWG</strong> (Max 25MB each). At least one PDF drawing sheet is mandatory.
+                Accepts PDF, CAD, and plan images (Max 25MB each). OCR reads labeled dimensions from PDFs and images for review.
               </p>
             </div>
 
@@ -681,23 +835,34 @@ export const NewApplication: React.FC = () => {
               <input
                 type="file"
                 multiple
-                accept=".pdf,.dwg,.dxf"
+                accept=".pdf,.dwg,.dxf,.jpg,.jpeg,.png,.webp"
                 onChange={handleFileUpload}
                 className="hidden"
                 id="plan-file-input"
               />
-              <label
-                htmlFor="plan-file-input"
-                className="mt-4 inline-flex items-center space-x-2 px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold cursor-pointer shadow-sm transition-colors"
-              >
-                <UploadCloud className="w-4 h-4" />
-                <span>Select CAD / PDF Files</span>
-              </label>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                <label
+                  htmlFor="plan-file-input"
+                  className="inline-flex items-center space-x-2 px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold cursor-pointer shadow-sm transition-colors"
+                >
+                  <UploadCloud className="w-4 h-4" />
+                  <span>Select CAD / PDF / Image Files</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={handleAttachSampleDrawing}
+                  className="inline-flex items-center space-x-2 px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold cursor-pointer shadow-sm transition-colors"
+                  title="Use standard test architectural plan (bp.pdf)"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>Use Standard Sample Plan (TNCDBR PDF)</span>
+                </button>
+              </div>
 
               {uploadProgress !== null && (
                 <div className="mt-4 max-w-xs mx-auto">
                   <div className="flex justify-between text-[11px] text-blue-900 font-medium mb-1">
-                    <span>Processing & Parsing CAD entities...</span>
+                    <span>Preprocessing drawings and extracting text...</span>
                     <span>{uploadProgress}%</span>
                   </div>
                   <div className="w-full bg-blue-200 h-2 rounded-full overflow-hidden">
@@ -753,10 +918,34 @@ export const NewApplication: React.FC = () => {
                                 Binary — Companion PDF will be scrutinized
                               </span>
                             )}
+                            {f.ocr && (
+                              <span className="text-[10px] bg-sky-50 text-sky-700 border border-sky-200 px-1.5 py-0.2 rounded">
+                                OCR {f.ocr.confidence}%
+                              </span>
+                            )}
                           </div>
                           <div className="text-[11px] text-slate-500 font-mono">
                             {(f.sizeBytes / (1024 * 1024)).toFixed(2)} MB • {new Date(f.uploadedAt).toLocaleTimeString()}
                           </div>
+                          {f.ocr && Object.values(f.ocr.measurements).some(value => value !== undefined) && (
+                            <button
+                              type="button"
+                              onClick={() => applyOcrMeasurements(f.ocr!)}
+                              className="mt-1 text-[11px] font-semibold text-blue-700 hover:text-blue-900"
+                            >
+                              Apply detected dimensions to FSI / setback fields
+                            </button>
+                          )}
+                          {f.ocr && (
+                            <details className="mt-1 max-w-lg">
+                              <summary className="cursor-pointer text-[11px] font-semibold text-slate-600 hover:text-slate-900">
+                                View OCR text ({f.ocr.pageCount} page(s))
+                              </summary>
+                              <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-slate-50 p-2 text-[10px] text-slate-600">
+                                {f.ocr.text || 'No readable text detected.'}
+                              </pre>
+                            </details>
+                          )}
                         </div>
                       </div>
 

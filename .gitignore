@@ -39,3 +39,26 @@ functions/node_modules/
 *.njsproj
 *.sln
 *.sw?
+
+# Python AI service
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.coverage
+
+# Java build output and local uploads
+java-backend/target/
+java-backend/uploads/
+java-backend/.env
+java-backend/.env.*
+!java-backend/.env.example
+
+# Local application configuration and secrets
+java-backend/src/main/resources/application.properties
+java-backend/src/main/resources/application-local.properties
+
+# Local backups
+*.backup
